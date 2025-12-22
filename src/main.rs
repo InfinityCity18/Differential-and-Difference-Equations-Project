@@ -1,6 +1,6 @@
 use nalgebra;
 use std::rc::Rc;
-use std::{clone, f64::consts::PI};
+use std::f64::consts::PI;
 use plotters::prelude::*;
 
 const OMEGA_L: f64 = 0.0;
@@ -9,8 +9,8 @@ const OMEGA_R: f64 = 2.0;
 struct C1 {
     pub d0: F, // funkcja
     pub d1: F, // jej pochodna
-    pub left: f64,
-    pub right: f64,
+    pub left: f64, // lewy kraniec przedzialu
+    pub right: f64, // prawy kraniec przedzialu
 }
 
 #[derive(Clone)]
@@ -33,12 +33,23 @@ impl F {
     }
 }
 
-fn main() {
-    println!("Hello, world!");
-    let f = F {
-        f: Rc::new(|x: f64| x.sin()),
-    };
-    solve(2000);
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut n = String::new();
+    let mut filename= String::new();
+    println!("Podaj n:");
+    std::io::stdin().read_line(&mut n)?;
+    println!("Podaj nazwę pliku do zapisu wykresu:");
+    std::io::stdin().read_line(&mut filename)?;
+    filename = filename + ".png";
+
+    let n= n.trim().parse::<usize>()?;
+    println!("Rozwiązywanie w toku.");
+    let res = solve(n);
+    println!("Rozwiązano równanie. Rysowanie w toku.");
+    plot(OMEGA_L, OMEGA_R, n, res, &filename)?;
+    println!("Wykres gotowy.");
+
+    return Ok(());
 }
 
 fn gauss_quadrature(f: F, a: f64, b: f64) -> f64 {
@@ -95,52 +106,75 @@ fn create_pyramids(a: f64, b: f64, n: usize) -> Vec<C1> {
     pyramids
 }
 
-fn solve(n: usize) {
-    let pyramids = create_pyramids(OMEGA_L, OMEGA_R, n);
+fn plot(a: f64, b: f64, n: usize, points: Vec<f64>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let y_max = points.iter().max_by(|a,b| a.total_cmp(b)).ok_or("no max value")?;
+    let y_min = points.iter().min_by(|a,b| a.total_cmp(b)).ok_or("no min value")?;
+    let diff = (y_max - y_min).abs() * 0.2;
 
-    // let root_area = BitMapBackend::new("meow.png", (1024, 768)).into_drawing_area();
-    // let x_axis = (0.0f64..2.0).step(0.01);
-    // root_area.fill(&WHITE);
-    // let root_area = root_area.titled("Image Title", ("sans-serif", 60)).unwrap();
-    // let (upper, lower) = root_area.split_vertically(512);
-    // let mut cc = ChartBuilder::on(&upper)
-    //     .margin(5)
-    //     .set_all_label_area_size(50)
-    //     .caption("Sine and Cosine", ("sans-serif", 40))
-    //     .build_cartesian_2d(-3.4f64..3.4, -1.2f64..1.2f64).unwrap();
-    // for  pyramid in pyramids.iter() {
-    //     cc.draw_series(LineSeries::new(x_axis.values().map(|x| (x, pyramid.d0.f(x))), &RED));
-    // }
-    // root_area.present().expect("Unable to write result to file, please make sure 'plotters-doc-data' dir exists under current dir");
+    let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
+    let step = (b - a) / n as f64;
+    let x_axis = (a..b+step).step(step);
+    root.fill(&WHITE)?;
+    let root = root.titled("Differential equation solution", ("sans-serif", 60))?;
 
+    let mut cc = ChartBuilder::on(&root)
+        .margin(5)
+        .set_all_label_area_size(50)
+        .caption("u(x)", ("sans-serif", 40))
+        .build_cartesian_2d(a..b, y_min-diff..y_max+diff).unwrap();
+    cc.configure_mesh().draw()?;
+    cc.draw_series(LineSeries::new(x_axis.values().zip(points.iter().cloned()), &RED))?;
 
+    return Ok(());
+}
 
+fn solve(mut n: usize) -> Vec<f64> {
+    let mut pyramids = create_pyramids(OMEGA_L, OMEGA_R, n);
+    pyramids.pop();
+    n -= 1;
     let it = pyramids
         .iter()
         .flat_map(|x| pyramids.iter().map(move |y| (y, x)))
         .map(|(w, v)| B(w, v));
     let a_matrix = nalgebra::DMatrix::from_iterator(n + 1, n + 1, it);
-    //println!("A matrix for n={}: \n{:#}", n, a_matrix);
     let b_vector = nalgebra::DVector::from_iterator(n + 1, pyramids.iter().map(|v| L(v)));
     let lu: nalgebra::LU<f64, nalgebra::Dyn, nalgebra::Dyn> = a_matrix.clone().lu();
     let result = lu.solve(&b_vector).expect("Failed to solve LU matrix");
-    //println!("Result for n={}: {:?}", n, result);
-        let root_area = BitMapBackend::new("meow.png", (1024, 768)).into_drawing_area();
-    let step = 2.0 / n as f64;
-    let x_axis = (0.0f64..2.0).step(step);
-    root_area.fill(&WHITE);
-    let root_area = root_area.titled("Image Title", ("sans-serif", 60)).unwrap();
-    let (upper, lower) = root_area.split_vertically(512);
-    let mut cc = ChartBuilder::on(&upper)
-        .margin(5)
-        .set_all_label_area_size(50)
-        .caption("Sine and Cosine", ("sans-serif", 40))
-        .build_cartesian_2d(-3.4f64..3.4, 0.0f64..200.0).unwrap();
-    cc.draw_series(LineSeries::new(x_axis.values().zip(result.iter()).map(|(x, &beta)| (x, beta + 3.0 * x - 3.0)), &RED));
-    root_area.present().expect("Unable to write result to file, please make sure 'plotters-doc-data' dir exists under current dir");
+    return result.iter().cloned().chain(std::iter::once(0.0)).map(|x| x + 3.0).collect();
 }
 
 //hardcoded B(w,v)
+// #[allow(non_snake_case)]
+// fn B(w: &C1, v: &C1) -> f64 {
+//     let e = F { f: Rc::new(E) };
+//     let left_bound = w.left.max(v.left).max(OMEGA_L);
+//     let right_bound = w.right.min(v.right).min(OMEGA_R);
+//     let r = 4.0 * w.d0.f(0.0) * v.d0.f(0.0) - gauss_quadrature(w.d1.clone() * v.d1.clone() * e, left_bound, right_bound);
+//     return r;
+// }
+
+// #[allow(non_snake_case)]
+// fn L(v: &C1) -> f64 {
+//     let e = F { f: Rc::new(E) };
+//     let sin = F {
+//         f: Rc::new(|x: f64| f64::sin(PI * x)),
+//     };
+//     let const3 = F {
+//         f: Rc::new(|_: f64| 3.0),
+//     };
+//     1000.0 * gauss_quadrature(v.d0.clone() * sin, v.left.max(OMEGA_L), v.right.min(OMEGA_R))
+//         + gauss_quadrature(const3 * v.d1.clone() * e, v.left.max(OMEGA_L), v.right.min(OMEGA_R))
+//         + 32.0 * v.d0.f(0.0)
+// }
+
+#[allow(non_snake_case)]
+fn L(v: &C1) -> f64 {
+    let sin = F {
+        f: Rc::new(|x: f64| f64::sin(PI * x)),
+    };
+    1000.0 * gauss_quadrature(v.d0.clone() * sin, v.left.max(OMEGA_L), v.right.min(OMEGA_R)) + 8.0 * v.d0.f(0.0)
+}
+
 #[allow(non_snake_case)]
 fn B(w: &C1, v: &C1) -> f64 {
     let e = F { f: Rc::new(E) };
@@ -148,18 +182,4 @@ fn B(w: &C1, v: &C1) -> f64 {
     let right_bound = w.right.min(v.right).min(OMEGA_R);
     let r = 4.0 * w.d0.f(0.0) * v.d0.f(0.0) - gauss_quadrature(w.d1.clone() * v.d1.clone() * e, left_bound, right_bound);
     return r;
-}
-
-#[allow(non_snake_case)]
-fn L(v: &C1) -> f64 {
-    let e = F { f: Rc::new(E) };
-    let sin = F {
-        f: Rc::new(|x: f64| f64::sin(PI * x)),
-    };
-    let const3 = F {
-        f: Rc::new(|_: f64| 3.0),
-    };
-    1000.0 * gauss_quadrature(v.d0.clone() * sin, v.left.max(OMEGA_L), v.right.min(OMEGA_R))
-        + gauss_quadrature(const3 * v.d1.clone() * e, v.left.max(OMEGA_L), v.right.min(OMEGA_R))
-        + 32.0 * v.d0.f(0.0)
 }
