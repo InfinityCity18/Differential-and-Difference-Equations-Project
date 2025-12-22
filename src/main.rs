@@ -62,12 +62,12 @@ fn gauss_quadrature(f: F, a: f64, b: f64) -> f64 {
 
 #[allow(non_snake_case)]
 fn E(x: f64) -> f64 {
-    match x {
-        _ if 0.0 <= x && x <= 1.0 => 2.0,
-        _ if 1.0 < x && x <= 2.0 => 6.0,
-        _ => {
-            panic!("Left range of function E");
-        }
+    if 0.0 <= x && x <= 1.0 {
+        2.0
+    } else if 1.0 < x && x <= 2.0 {
+        6.0
+    } else {
+        panic!("Left range of function E");
     }
 }
 
@@ -111,7 +111,7 @@ fn plot(a: f64, b: f64, n: usize, points: Vec<f64>, filename: &str) -> Result<()
     let y_min = points.iter().min_by(|a,b| a.total_cmp(b)).ok_or("no min value")?;
     let diff = (y_max - y_min).abs() * 0.2;
 
-    let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
+    let root = BitMapBackend::new(filename, (1920,1080)).into_drawing_area();
     let step = (b - a) / n as f64;
     let x_axis = (a..b+step).step(step);
     root.fill(&WHITE)?;
