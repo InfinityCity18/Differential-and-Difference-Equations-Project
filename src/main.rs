@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::io::stdin().read_line(&mut n)?;
     println!("Podaj nazwę pliku do zapisu wykresu:");
     std::io::stdin().read_line(&mut filename)?;
-    filename = filename + ".png";
+    filename = filename.trim().to_owned() + ".png";
 
     let n= n.trim().parse::<usize>()?;
     println!("Rozwiązywanie w toku.");
