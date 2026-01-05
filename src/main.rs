@@ -40,14 +40,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::io::stdin().read_line(&mut n)?;
     println!("Podaj nazwę pliku do zapisu wykresu:");
     std::io::stdin().read_line(&mut filename)?;
-    filename = filename.trim().to_owned() + ".png";
+    let filename_graph = filename.trim().to_owned() + ".png";
+    let filename_data = filename.trim().to_owned() + ".txt";
 
     let n= n.trim().parse::<usize>()?;
     println!("Rozwiązywanie w toku.");
     let res = solve(n);
     println!("Rozwiązano równanie. Rysowanie w toku.");
-    plot(OMEGA_L, OMEGA_R, n, res, &filename)?;
+    plot(OMEGA_L, OMEGA_R, n, &res, &filename_graph)?;
     println!("Wykres gotowy.");
+    std::fs::write(
+        filename_data,
+        res.iter()
+            .enumerate()
+            .map(|(i, v)| format!("{} {}\n", OMEGA_L + (OMEGA_R - OMEGA_L) * i as f64 / n as f64, v))
+            .collect::<String>(),
+    )?;
+    println!("Dane zapisane.");
 
     return Ok(());
 }
@@ -117,7 +126,7 @@ fn create_pyramids(a: f64, b: f64, n: usize) -> Vec<C1> {
     pyramids
 }
 
-fn plot(a: f64, b: f64, n: usize, points: Vec<f64>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn plot(a: f64, b: f64, n: usize, points: &Vec<f64>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let y_max = points.iter().max_by(|a,b| a.total_cmp(b)).ok_or("no max value")?;
     let y_min = points.iter().min_by(|a,b| a.total_cmp(b)).ok_or("no min value")?;
     let diff = (y_max - y_min).abs() * 0.2;
