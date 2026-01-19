@@ -61,7 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     return Ok(());
 }
 
-fn gauss_quadrature(f: F, a: f64, b: f64) -> f64 {
+fn gauss_quadrature(f: F, a: f64, b: f64) -> f64 { //kwadratura 2 punkty
     let inv_sqrt_3: f64 = 1.0 / 3f64.sqrt();
     let b_m_a = (b - a) / 2.0;
     let a_p_b = (a + b) / 2.0;
@@ -69,7 +69,7 @@ fn gauss_quadrature(f: F, a: f64, b: f64) -> f64 {
     b_m_a * (f.f(b_m_a * inv_sqrt_3 + a_p_b) + f.f(b_m_a * -inv_sqrt_3 + a_p_b))
 }
 
-fn gauss_quadrature2(f: F, a: f64, b: f64) -> f64 {
+fn gauss_quadrature2(f: F, a: f64, b: f64) -> f64 { //kwadratura 64 punkty
     let b_m_a = (b - a) / 2.0;
     let a_p_b = (a + b) / 2.0;
 
@@ -126,31 +126,9 @@ fn create_pyramids(a: f64, b: f64, n: usize) -> Vec<C1> {
     pyramids
 }
 
-fn plot(a: f64, b: f64, n: usize, points: &Vec<f64>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let y_max = points.iter().max_by(|a,b| a.total_cmp(b)).ok_or("no max value")?;
-    let y_min = points.iter().min_by(|a,b| a.total_cmp(b)).ok_or("no min value")?;
-    let diff = (y_max - y_min).abs() * 0.2;
-
-    let root = BitMapBackend::new(filename, (1920,1080)).into_drawing_area();
-    let step = (b - a) / n as f64;
-    let x_axis = (a..b+step).step(step);
-    root.fill(&WHITE)?;
-    let root = root.titled("Differential equation solution", ("sans-serif", 60))?;
-
-    let mut cc = ChartBuilder::on(&root)
-        .margin(5)
-        .set_all_label_area_size(50)
-        .caption("u(x)", ("sans-serif", 40))
-        .build_cartesian_2d(a..b, y_min-diff..y_max+diff).unwrap();
-    cc.configure_mesh().draw()?;
-    cc.draw_series(LineSeries::new(x_axis.values().zip(points.iter().cloned()), &RED))?;
-
-    return Ok(());
-}
-
 fn solve(mut n: usize) -> Vec<f64> {
     let mut pyramids = create_pyramids(OMEGA_L, OMEGA_R, n);
-    pyramids.pop();
+    pyramids.pop(); //usuwamy ostatnia bo sie zeruje
     n -= 1;
     let it = pyramids
         .iter()
@@ -160,32 +138,8 @@ fn solve(mut n: usize) -> Vec<f64> {
     let b_vector = nalgebra::DVector::from_iterator(n + 1, pyramids.iter().map(|v| L(v)));
     let lu: nalgebra::LU<f64, nalgebra::Dyn, nalgebra::Dyn> = a_matrix.clone().lu();
     let result = lu.solve(&b_vector).expect("Failed to solve LU matrix");
-    return result.iter().cloned().chain(std::iter::once(0.0)).map(|x| x + 3.0).collect();
+    return result.iter().cloned().chain(std::iter::once(0.0)).map(|x| x + 3.0).collect(); //Podnosimy wynik o 3 ze wzgledu na funkcje przesuniecia
 }
-
-//hardcoded B(w,v)
-// #[allow(non_snake_case)]
-// fn B(w: &C1, v: &C1) -> f64 {
-//     let e = F { f: Rc::new(E) };
-//     let left_bound = w.left.max(v.left).max(OMEGA_L);
-//     let right_bound = w.right.min(v.right).min(OMEGA_R);
-//     let r = 4.0 * w.d0.f(0.0) * v.d0.f(0.0) - gauss_quadrature(w.d1.clone() * v.d1.clone() * e, left_bound, right_bound);
-//     return r;
-// }
-
-// #[allow(non_snake_case)]
-// fn L(v: &C1) -> f64 {
-//     let e = F { f: Rc::new(E) };
-//     let sin = F {
-//         f: Rc::new(|x: f64| f64::sin(PI * x)),
-//     };
-//     let const3 = F {
-//         f: Rc::new(|_: f64| 3.0),
-//     };
-//     1000.0 * gauss_quadrature(v.d0.clone() * sin, v.left.max(OMEGA_L), v.right.min(OMEGA_R))
-//         + gauss_quadrature(const3 * v.d1.clone() * e, v.left.max(OMEGA_L), v.right.min(OMEGA_R))
-//         + 32.0 * v.d0.f(0.0)
-// }
 
 #[allow(non_snake_case)]
 fn L(v: &C1) -> f64 {
@@ -216,6 +170,28 @@ fn B(w: &C1, v: &C1) -> f64 {
     } else {
         4.0 * w.d0.f(0.0) * v.d0.f(0.0) - gauss_quadrature2(w.d1.clone() * v.d1.clone() * e, left_bound, right_bound)
     }
+}
+
+fn plot(a: f64, b: f64, n: usize, points: &Vec<f64>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let y_max = points.iter().max_by(|a,b| a.total_cmp(b)).ok_or("no max value")?;
+    let y_min = points.iter().min_by(|a,b| a.total_cmp(b)).ok_or("no min value")?;
+    let diff = (y_max - y_min).abs() * 0.2;
+
+    let root = BitMapBackend::new(filename, (1920,1080)).into_drawing_area();
+    let step = (b - a) / n as f64;
+    let x_axis = (a..b+step).step(step);
+    root.fill(&WHITE)?;
+    let root = root.titled("Differential equation solution", ("sans-serif", 60))?;
+
+    let mut cc = ChartBuilder::on(&root)
+        .margin(5)
+        .set_all_label_area_size(50)
+        .caption("u(x)", ("sans-serif", 40))
+        .build_cartesian_2d(a..b, y_min-diff..y_max+diff).unwrap();
+    cc.configure_mesh().draw()?;
+    cc.draw_series(LineSeries::new(x_axis.values().zip(points.iter().cloned()), &RED))?;
+
+    return Ok(());
 }
 
 const GAUSS_POINTS: [(f64, f64); 64] = [
